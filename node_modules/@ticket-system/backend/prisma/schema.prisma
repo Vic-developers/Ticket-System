@@ -272,10 +272,10 @@ model AssignmentRule {
   ticketType      TicketType?       @relation(fields: [ticketTypeId], references: [id])
   category        Category?         @relation(fields: [categoryId], references: [id])
   subcategory     Subcategory?      @relation(fields: [subcategoryId], references: [id])
-  priority        Priority?         @relation(fields: [priorityId], references: [id])
+  priorityRef     Priority?         @relation(fields: [priorityId], references: [id])
   academicPeriod  AcademicPeriod?   @relation(fields: [academicPeriodId], references: [id])
-  assignedUser    User              @relation(fields: [assignedUserId], references: [id])
-  createdBy       User              @relation(fields: [createdById], references: [id])
+  assignedUser    User              @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  createdBy       User              @relation("CreatedBy", fields: [createdById], references: [id])
 
   @@map("assignment_rules")
   @@index([priorityId])
@@ -415,8 +415,8 @@ model TicketReassignment {
   createdAt       DateTime       @default(now()) @map("created_at")
 
   ticket          Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  fromUser        User?          @relation(fields: [fromUserId], references: [id])
-  toUser          User           @relation(fields: [toUserId], references: [id])
+  fromUser        User?          @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser          User           @relation("ToUser", fields: [toUserId], references: [id])
   reassignedBy    User           @relation("ReassignedBy", fields: [reassignedById], references: [id])
   assignmentRule  AssignmentRule? @relation(fields: [assignmentRuleId], references: [id])
 
