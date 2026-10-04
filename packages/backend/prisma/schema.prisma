@@ -1,0 +1,469 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TECNICO
+  SOLICITANTE
+}
+
+enum TicketStatus {
+  NUEVO
+  EN_PROCESO
+  PENDIENTE
+  RESUELTO
+  CERRADO
+  CANCELADO
+}
+
+enum TicketPriority {
+  BAJA
+  NORMAL
+  ALTA
+  CRITICA
+}
+
+enum AssignmentType {
+  AUTOMATICA
+  MANUAL
+}
+
+enum NotificationEvent {
+  TICKET_CREADO
+  TICKET_ASIGNADO
+  TICKET_REASIGNADO
+  COMENTARIO_AGREGADO
+  ESTADO_CAMBIADO
+  TICKET_RESUELTO
+  TICKET_CERRADO
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  phone         String?
+  role          Role      @default(SOLICITANTE)
+  isActive      Boolean   @default(true) @map("is_active")
+  departmentId  String?   @map("department_id")
+  campusId      String?   @map("campus_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+
+  department    Department?   @relation(fields: [departmentId], references: [id])
+  campus        Campus?       @relation(fields: [campusId], references: [id])
+  assignedTickets Ticket[]   @relation("AssignedTickets")
+  createdTickets  Ticket[]   @relation("CreatedTickets")
+  comments        TicketComment[]
+  attachments     TicketAttachment[]
+  history         TicketHistory[] @relation("UserHistory")
+  reassignments   TicketReassignment[] @relation("ReassignedBy")
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+  @@index([email])
+  @@index([role])
+  @@index([campusId])
+  @@index([departmentId])
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       User[]
+  tickets     Ticket[]
+  assignmentRules AssignmentRule[]
+
+  @@map("departments")
+  @@index([code])
+}
+
+model Campus {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users            User[]
+  tickets          Ticket[]
+  assignmentRules  AssignmentRule[]
+  academicPeriods  AcademicPeriod[]
+
+  @@map("campuses")
+  @@index([code])
+  @@index([isActive])
+}
+
+model AcademicPeriod {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  year        Int
+  quarter     Int
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  isActive    Boolean  @default(true) @map("is_active")
+  campusId    String   @map("campus_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  campus      Campus       @relation(fields: [campusId], references: [id])
+  tickets     Ticket[]
+  assignmentRules AssignmentRule[]
+
+  @@map("academic_periods")
+  @@index([campusId])
+  @@index([year, quarter])
+  @@index([startDate, endDate])
+  @@index([isActive])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  parentId    String?  @map("parent_id")
+
+  parent      Category?     @relation("Subcategories", fields: [parentId], references: [id])
+  children    Category[]    @relation("Subcategories")
+  tickets     Ticket[]
+  subcategories Subcategory[]
+  assignmentRules AssignmentRule[]
+
+  @@map("categories")
+  @@index([code])
+  @@index([parentId])
+  @@index([isActive])
+}
+
+model Subcategory {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  categoryId  String   @map("category_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category    Category   @relation(fields: [categoryId], references: [id])
+  tickets     Ticket[]
+  assignmentRules AssignmentRule[]
+
+  @@map("subcategories")
+  @@index([categoryId])
+  @@index([code])
+  @@index([isActive])
+}
+
+model TicketType {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tickets         Ticket[]
+  assignmentRules AssignmentRule[]
+
+  @@map("ticket_types")
+  @@index([code])
+  @@index([isActive])
+}
+
+model Priority {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  level       Int      @unique
+  color       String   @default("#6B7280")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tickets         Ticket[]
+  assignmentRules AssignmentRule[]
+
+  @@map("priorities")
+  @@index([code])
+  @@index([level])
+}
+
+model TicketStatusModel {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  order       Int      @unique
+  color       String   @default("#6B7280")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  isFinal     Boolean  @default(false) @map("is_final")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tickets     Ticket[]
+
+  @@map("ticket_statuses")
+  @@index([code])
+  @@index([order])
+}
+
+model Channel {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tickets     Ticket[]
+
+  @@map("channels")
+  @@index([code])
+}
+
+model AssignmentRule {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  priority        Int      @default(0)
+  isActive        Boolean  @default(true) @map("is_active")
+  campusId        String?  @map("campus_id")
+  departmentId    String?  @map("department_id")
+  ticketTypeId    String?  @map("ticket_type_id")
+  categoryId      String?  @map("category_id")
+  subcategoryId   String?  @map("subcategory_id")
+  priorityId      String?  @map("priority_id")
+  academicPeriodId String? @map("academic_period_id")
+  assignedUserId  String   @map("assigned_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdById     String   @map("created_by_id")
+
+  campus          Campus?           @relation(fields: [campusId], references: [id])
+  department      Department?       @relation(fields: [departmentId], references: [id])
+  ticketType      TicketType?       @relation(fields: [ticketTypeId], references: [id])
+  category        Category?         @relation(fields: [categoryId], references: [id])
+  subcategory     Subcategory?      @relation(fields: [subcategoryId], references: [id])
+  priority        Priority?         @relation(fields: [priorityId], references: [id])
+  academicPeriod  AcademicPeriod?   @relation(fields: [academicPeriodId], references: [id])
+  assignedUser    User              @relation(fields: [assignedUserId], references: [id])
+  createdBy       User              @relation(fields: [createdById], references: [id])
+
+  @@map("assignment_rules")
+  @@index([priorityId])
+  @@index([isActive])
+  @@index([campusId])
+  @@index([categoryId])
+  @@index([ticketTypeId])
+}
+
+model Ticket {
+  id                  String         @id @default(cuid())
+  ticketNumber        String         @unique @map("ticket_number")
+  title               String
+  description         String
+  statusId            String         @default("NUEVO") @map("status_id")
+  priorityId          String         @default("NORMAL") @map("priority_id")
+  categoryId          String         @map("category_id")
+  subcategoryId       String?        @map("subcategory_id")
+  ticketTypeId        String         @map("ticket_type_id")
+  campusId            String         @map("campus_id")
+  departmentId        String?        @map("department_id")
+  academicPeriodId    String?        @map("academic_period_id")
+  channelId           String?        @map("channel_id")
+  requesterId         String         @map("requester_id")
+  assigneeId          String?        @map("assignee_id")
+  assignedAt          DateTime?      @map("assigned_at")
+  firstResponseAt     DateTime?      @map("first_response_at")
+  resolvedAt          DateTime?      @map("resolved_at")
+  closedAt            DateTime?      @map("closed_at")
+  responseTimeMinutes Int?           @map("response_time_minutes")
+  resolutionTimeMinutes Int?         @map("resolution_time_minutes")
+  isAutoAssigned      Boolean        @default(false) @map("is_auto_assigned")
+  assignmentRuleId    String?        @map("assignment_rule_id")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  status              TicketStatusModel @relation(fields: [statusId], references: [id])
+  priority            Priority         @relation(fields: [priorityId], references: [id])
+  category            Category         @relation(fields: [categoryId], references: [id])
+  subcategory         Subcategory?     @relation(fields: [subcategoryId], references: [id])
+  ticketType          TicketType       @relation(fields: [ticketTypeId], references: [id])
+  campus              Campus           @relation(fields: [campusId], references: [id])
+  department          Department?      @relation(fields: [departmentId], references: [id])
+  academicPeriod      AcademicPeriod?  @relation(fields: [academicPeriodId], references: [id])
+  channel             Channel?         @relation(fields: [channelId], references: [id])
+  requester           User             @relation("CreatedTickets", fields: [requesterId], references: [id])
+  assignee            User?            @relation("AssignedTickets", fields: [assigneeId], references: [id])
+  assignmentRule      AssignmentRule?  @relation(fields: [assignmentRuleId], references: [id])
+
+  comments            TicketComment[]
+  attachments         TicketAttachment[]
+  history             TicketHistory[]
+  reassignments       TicketReassignment[]
+
+  @@map("tickets")
+  @@index([ticketNumber])
+  @@index([statusId])
+  @@index([priorityId])
+  @@index([categoryId])
+  @@index([campusId])
+  @@index([assigneeId])
+  @@index([requesterId])
+  @@index([academicPeriodId])
+  @@index([createdAt])
+  @@index([assignedAt])
+  @@index([resolvedAt])
+  @@index([isAutoAssigned])
+}
+
+model TicketComment {
+  id          String   @id @default(cuid())
+  content     String
+  isInternal  Boolean  @default(false) @map("is_internal")
+  ticketId    String   @map("ticket_id")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("ticket_comments")
+  @@index([ticketId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model TicketAttachment {
+  id          String   @id @default(cuid())
+  fileName    String   @map("file_name")
+  originalName String  @map("original_name")
+  mimeType    String   @map("mime_type")
+  size        Int
+  path        String
+  ticketId    String   @map("ticket_id")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("ticket_attachments")
+  @@index([ticketId])
+  @@index([userId])
+}
+
+model TicketHistory {
+  id          String   @id @default(cuid())
+  ticketId    String   @map("ticket_id")
+  userId      String   @map("user_id")
+  action      String
+  field       String?
+  oldValue    String?  @map("old_value")
+  newValue    String?  @map("new_value")
+  reason      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User     @relation("UserHistory", fields: [userId], references: [id])
+
+  @@map("ticket_history")
+  @@index([ticketId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model TicketReassignment {
+  id              String         @id @default(cuid())
+  ticketId        String         @map("ticket_id")
+  fromUserId      String?        @map("from_user_id")
+  toUserId        String         @map("to_user_id")
+  reason          String
+  assignmentType  AssignmentType @default(MANUAL) @map("assignment_type")
+  assignmentRuleId String?       @map("assignment_rule_id")
+  reassignedById  String         @map("reassigned_by_id")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  ticket          Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromUser        User?          @relation(fields: [fromUserId], references: [id])
+  toUser          User           @relation(fields: [toUserId], references: [id])
+  reassignedBy    User           @relation("ReassignedBy", fields: [reassignedById], references: [id])
+  assignmentRule  AssignmentRule? @relation(fields: [assignmentRuleId], references: [id])
+
+  @@map("ticket_reassignments")
+  @@index([ticketId])
+  @@index([toUserId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String           @map("user_id")
+  event       NotificationEvent
+  title       String
+  message     String
+  ticketId    String?          @map("ticket_id")
+  isRead      Boolean          @default(false) @map("is_read")
+  readAt      DateTime?        @map("read_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([userId])
+  @@index([isRead])
+  @@index([event])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  action      String
+  entity      String
+  entityId    String   @map("entity_id")
+  oldData     Json?    @map("old_data")
+  newData     Json?    @map("new_data")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
+}
